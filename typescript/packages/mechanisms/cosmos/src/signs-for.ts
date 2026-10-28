@@ -57,12 +57,12 @@ export class AccountKeyCache {
    * The stored key for an account: the cached answer, or the result of `load`.
    *
    * @param address - Bech32 account address
-   * @param load - Reads the key from the chain. Throw to fail the lookup
+   * @param load - Reads the key from the chain. `null` means none is stored. Throw to fail the lookup
    * @returns The stored key, or undefined when the account has none
    */
   async get(
     address: string,
-    load: () => Promise<CosmosAccountPubKey | undefined>,
+    load: () => Promise<CosmosAccountPubKey | null>,
   ): Promise<CosmosAccountPubKey | undefined> {
     const now = Date.now();
     const hit = this.entries.get(address);

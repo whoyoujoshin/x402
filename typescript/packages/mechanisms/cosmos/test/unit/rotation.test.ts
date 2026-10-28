@@ -26,15 +26,16 @@ const requirements = requirementsFor(
   rotation.keys.next.address,
 );
 
+/** `null` is the explicit no-key signal. Empty vector `stored` is that case. */
 const storedKey = (raw: string) =>
-  raw === "" ? undefined : { typeUrl: TYPE_URL, key: hex.decode(raw) };
+  raw === "" ? null : { typeUrl: TYPE_URL, key: hex.decode(raw) };
 
 const chainStoring = (raw: string) =>
   fakeChain({
     getAccount: async () => ({
       accountNumber: 7n,
       sequence: 3n,
-      ...(storedKey(raw) ? { pubKey: storedKey(raw) } : {}),
+      pubKey: storedKey(raw),
     }),
   });
 
@@ -47,7 +48,7 @@ describe("signsFor (aether clients/testdata/rotation.json)", () => {
         account!,
         TYPE_URL,
         hex.decode(vector.pubKey),
-        storedKey(vector.stored),
+        storedKey(vector.stored) ?? undefined,
         aetherMlDsa44Verifier,
       ),
     ).toBe(vector.signsFor);
@@ -186,7 +187,7 @@ describe("a rotated payer", () => {
             down = false;
             throw new Error("unavailable");
           }
-          return { accountNumber: 7n, sequence: 3n };
+          return { accountNumber: 7n, sequence: 3n, pubKey: null };
         },
       }),
     });
@@ -195,6 +196,33 @@ describe("a rotated payer", () => {
       invalidReason: "unexpected_verify_error",
       invalidMessage: "unavailable",
     });
+    expect(await facilitator.verify(payload, req)).toEqual({ isValid: true, payer: vector.payer });
+  });
+
+  it("refuses an omitted pubKey and does not cache that refusal", async () => {
+    const vector = vectors.find(v => v.name === "secp256k1")!;
+    const req = requirementsFor(
+      `cosmos:${vector.chainId}`,
+      vector.asset,
+      vector.amount,
+      vector.payTo,
+    );
+    const payload = paymentPayload(req, vector.transaction);
+    let reported = false;
+    const facilitator = new Facilitator({
+      chainClient: fakeChain({
+        getAccount: async () =>
+          reported
+            ? { accountNumber: 7n, sequence: 3n, pubKey: null }
+            : { accountNumber: 7n, sequence: 3n },
+      }),
+    });
+    expect(await facilitator.verify(payload, req)).toMatchObject({
+      isValid: false,
+      invalidReason: "unexpected_verify_error",
+      invalidMessage: "account key lookup omitted pubKey",
+    });
+    reported = true;
     expect(await facilitator.verify(payload, req)).toEqual({ isValid: true, payer: vector.payer });
   });
 });

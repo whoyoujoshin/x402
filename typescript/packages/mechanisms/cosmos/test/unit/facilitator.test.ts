@@ -35,7 +35,7 @@ describe.each(vectors)("a payment signed in Go ($name)", vector => {
 
   it("is refused for another account number (the signature covers it)", async () => {
     const chainClient = fakeChain({
-      getAccount: async () => ({ accountNumber: 8n, sequence: 3n }),
+      getAccount: async () => ({ accountNumber: 8n, sequence: 3n, pubKey: null }),
     });
     const result = await new Facilitator({ chainClient }).verify(payload, requirements);
     expect(result.invalidReason).toBe("invalid_exact_cosmos_payload_signature");
@@ -170,7 +170,7 @@ describe("verification", () => {
 
   it("checks the account against the chain", async () => {
     const at = (sequence: bigint) =>
-      fakeChain({ getAccount: async () => ({ accountNumber: 7n, sequence }) });
+      fakeChain({ getAccount: async () => ({ accountNumber: 7n, sequence, pubKey: null }) });
     expect(await reason(valid, requirements, at(4n))).toBe("invalid_exact_cosmos_payload_sequence");
     expect(await reason(valid, requirements, at(2n))).toBeUndefined();
     expect(

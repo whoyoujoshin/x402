@@ -176,7 +176,7 @@ export class ExactCosmosScheme implements SchemeNetworkFacilitator {
 
   /**
    * Whether `key` signs for the payer: the key cached from the account, or
-   * the key its address hashes from when the account has stored none.
+   * the key its address hashes from when the account's `pubKey` is `null`.
    *
    * @param address - Payer bech32 address
    * @param payerBytes - Payer address bytes
@@ -194,7 +194,13 @@ export class ExactCosmosScheme implements SchemeNetworkFacilitator {
   ): Promise<boolean> {
     const stored = await this.accountKeys.get(address, async () => {
       const account = await this.options.chainClient.getAccount(address);
-      return account?.pubKey;
+      // No account is a successful answer: nothing is stored on it. An
+      // account that omits pubKey did not answer, so the lookup fails.
+      if (!account) return null;
+      if (account.pubKey === undefined) {
+        throw new Error("account key lookup omitted pubKey");
+      }
+      return account.pubKey;
     });
     return signsFor(payerBytes, typeUrl, key, stored, verifier);
   }

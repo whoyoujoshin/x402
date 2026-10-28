@@ -36,12 +36,12 @@ export type CosmosAccount = {
   accountNumber: bigint;
   sequence: bigint;
   /**
-   * Key stored on the account. Absent when the account has not signed yet:
-   * the facilitator then accepts the key the address hashes from. Set this
-   * from `AccountInfo.pub_key`; a chain that rotates keys keeps the address
-   * and replaces this key.
+   * Key stored on the account, from `AccountInfo.pub_key`. `null` means the
+   * account has no key stored yet, so the key its address hashes from signs
+   * for it. Omitting `pubKey` is a failed lookup: the facilitator refuses
+   * the payment and does not cache the answer.
    */
-  pubKey?: CosmosAccountPubKey;
+  pubKey?: CosmosAccountPubKey | null;
 };
 
 /**
@@ -68,8 +68,8 @@ export type CosmosBroadcastResult = {
 export interface CosmosChainClient {
   /**
    * Account number, next sequence, and stored public key, or undefined if
-   * the account doesn't exist. `pubKey` comes from the same
-   * `cosmos.auth.v1beta1.Query/AccountInfo` answer.
+   * the account doesn't exist. `pubKey` is `null` when the account has not
+   * signed yet. Omitting `pubKey` is a failed lookup.
    */
   getAccount(address: string): Promise<CosmosAccount | undefined>;
   /**

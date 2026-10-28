@@ -176,6 +176,7 @@ describe("createCometRpcClient", () => {
     expect(await account(encoded()).getAccount("cosmos1q")).toEqual({
       accountNumber: 7n,
       sequence: 3n,
+      pubKey: null,
     });
     // A pubkey Any that doesn't carry key bytes is a failed lookup.
     await expect(

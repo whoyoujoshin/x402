@@ -93,10 +93,11 @@ export function createCometRpcClient(
       }
       const info = QueryAccountInfoResponse.decode(value).info;
       if (!info) return undefined;
-      const pubKey = storedPubKey(info.pubKey);
-      return pubKey
-        ? { accountNumber: info.accountNumber, sequence: info.sequence, pubKey }
-        : { accountNumber: info.accountNumber, sequence: info.sequence };
+      return {
+        accountNumber: info.accountNumber,
+        sequence: info.sequence,
+        pubKey: storedPubKey(info.pubKey) ?? null,
+      };
     },
 
     async getLatestHeight() {
@@ -138,8 +139,8 @@ export function createCometRpcClient(
 
 /**
  * The public key stored on an account, from `AccountInfo.pub_key`.
- * Absent when the account has not signed yet. A key that doesn't decode
- * is a failed lookup.
+ * Undefined when the account has not signed yet (`pubKey: null` on the
+ * account). A key that doesn't decode is a failed lookup.
  *
  * @param any - Protobuf `Any` on the account, if the field is set
  * @returns Stored key, or undefined when none is stored
