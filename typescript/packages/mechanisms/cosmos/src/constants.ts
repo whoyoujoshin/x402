@@ -50,3 +50,9 @@ export const DEFAULT_SETTLE_TIMEOUT_MS = 90_000;
  * Extra time a settled transaction hash stays in the duplicate cache.
  */
 export const SETTLEMENT_TTL_MS = 120_000;
+
+/**
+ * How long a stored account key is reused. After a rotation applies, a
+ * verifier can still be holding the previous key for up to this long.
+ */
+export const ACCOUNT_KEY_TTL_MS = 30_000;

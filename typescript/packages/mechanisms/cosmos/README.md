@@ -50,6 +50,8 @@ The facilitator accepts these key types by default, and others through `pubKeyVe
 - `/injective.crypto.v1beta1.ethsecp256k1.PubKey` - Injective.
 - `/aether.crypto.v1.PubKey` - ML-DSA-44 accounts on Aether.
 
+The key that signs for an account is the one stored on it (`AccountInfo.pub_key`, returned on `getAccount`). An account with no key stored yet is signed for by the key its address hashes from. A chain that rotates account keys, such as Aether, keeps the address and stores the new key: the retired key is refused and the new one is accepted. A failed lookup is a refusal. Stored keys are cached for 30 seconds.
+
 ## Usage
 
 ```typescript

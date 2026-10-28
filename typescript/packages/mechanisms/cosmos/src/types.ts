@@ -16,11 +16,32 @@ export type ExactCosmosPayload = {
 };
 
 /**
- * An account's number and next sequence.
+ * Public key stored on an account (`AccountInfo.pub_key`).
+ */
+export type CosmosAccountPubKey = {
+  /**
+   * Protobuf type URL, for example `/aether.crypto.v1.PubKey`.
+   */
+  typeUrl: string;
+  /**
+   * Raw key bytes (the key message's field 1).
+   */
+  key: Uint8Array;
+};
+
+/**
+ * An account's number, next sequence, and stored public key.
  */
 export type CosmosAccount = {
   accountNumber: bigint;
   sequence: bigint;
+  /**
+   * Key stored on the account. Absent when the account has not signed yet:
+   * the facilitator then accepts the key the address hashes from. Set this
+   * from `AccountInfo.pub_key`; a chain that rotates keys keeps the address
+   * and replaces this key.
+   */
+  pubKey?: CosmosAccountPubKey;
 };
 
 /**
@@ -46,7 +67,9 @@ export type CosmosBroadcastResult = {
  */
 export interface CosmosChainClient {
   /**
-   * Account number and next sequence, or undefined if the account doesn't exist.
+   * Account number, next sequence, and stored public key, or undefined if
+   * the account doesn't exist. `pubKey` comes from the same
+   * `cosmos.auth.v1beta1.Query/AccountInfo` answer.
    */
   getAccount(address: string): Promise<CosmosAccount | undefined>;
   /**

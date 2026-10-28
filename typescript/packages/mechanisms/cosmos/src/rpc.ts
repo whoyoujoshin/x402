@@ -3,8 +3,9 @@ import {
   QueryAccountInfoRequest,
   QueryAccountInfoResponse,
 } from "cosmjs-types/cosmos/auth/v1beta1/query";
+import { PubKey } from "cosmjs-types/cosmos/crypto/secp256k1/keys";
 import { SimulateRequest, SimulateResponse } from "cosmjs-types/cosmos/tx/v1beta1/service";
-import type { CosmosChainClient } from "./types";
+import type { CosmosAccountPubKey, CosmosChainClient } from "./types";
 
 type RpcResponse<T> = { result?: T; error?: { code: number; message: string; data?: string } };
 
@@ -91,7 +92,11 @@ export function createCometRpcClient(
         throw error;
       }
       const info = QueryAccountInfoResponse.decode(value).info;
-      return info ? { accountNumber: info.accountNumber, sequence: info.sequence } : undefined;
+      if (!info) return undefined;
+      const pubKey = storedPubKey(info.pubKey);
+      return pubKey
+        ? { accountNumber: info.accountNumber, sequence: info.sequence, pubKey }
+        : { accountNumber: info.accountNumber, sequence: info.sequence };
     },
 
     async getLatestHeight() {
@@ -129,4 +134,29 @@ export function createCometRpcClient(
       }
     },
   };
+}
+
+/**
+ * The public key stored on an account, from `AccountInfo.pub_key`.
+ * Absent when the account has not signed yet. A key that doesn't decode
+ * is a failed lookup.
+ *
+ * @param any - Protobuf `Any` on the account, if the field is set
+ * @returns Stored key, or undefined when none is stored
+ */
+function storedPubKey(
+  any: { typeUrl: string; value: Uint8Array } | undefined,
+): CosmosAccountPubKey | undefined {
+  if (!any || any.value.length === 0) return undefined;
+  let key: Uint8Array;
+  try {
+    key = PubKey.decode(any.value).key;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new CosmosRpcError(`account pubkey ${any.typeUrl || "unknown"}: ${detail}`, -1);
+  }
+  if (key.length === 0) {
+    throw new CosmosRpcError(`account pubkey ${any.typeUrl || "unknown"} has no key bytes`, -1);
+  }
+  return { typeUrl: any.typeUrl, key };
 }
