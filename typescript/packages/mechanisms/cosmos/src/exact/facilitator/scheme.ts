@@ -21,6 +21,7 @@ import {
 } from "../../constants";
 import { DEFAULT_PUBKEY_VERIFIERS } from "../../pubkeys";
 import { SettlementCache } from "../../settlement-cache";
+import { AccountKeyCache, signsFor } from "../../signs-for";
 import type { CosmosFacilitatorOptions, CosmosPubKeyVerifier } from "../../types";
 import {
   addressBytes,
@@ -38,13 +39,16 @@ type Refused = { payer: string; reason: string; message?: string };
 /**
  * Cosmos SDK facilitator implementation for the exact payment scheme. It
  * holds no key: the payer signs the whole transaction and pays its fee, and
- * the facilitator checks it and broadcasts it.
+ * the facilitator checks it and broadcasts it. The key that signs for the
+ * payer is the one stored on the account, or, when none is stored yet, the
+ * key the payer's address hashes from.
  */
 export class ExactCosmosScheme implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
   readonly caipFamily = COSMOS_CAIP_FAMILY;
   private readonly verifiers: Record<string, CosmosPubKeyVerifier>;
   private readonly settlementCache: SettlementCache;
+  private readonly accountKeys = new AccountKeyCache();
 
   /**
    * Creates a Cosmos exact facilitator scheme for one chain.
@@ -171,6 +175,37 @@ export class ExactCosmosScheme implements SchemeNetworkFacilitator {
   }
 
   /**
+   * Whether `key` signs for the payer: the key cached from the account, or
+   * the key its address hashes from when the account's `pubKey` is `null`.
+   *
+   * @param address - Payer bech32 address
+   * @param payerBytes - Payer address bytes
+   * @param typeUrl - Type URL of the presented key
+   * @param key - Raw presented key
+   * @param verifier - Rules for that key type
+   * @returns True when this key signs for the payer
+   */
+  private async keySignsForPayer(
+    address: string,
+    payerBytes: Uint8Array,
+    typeUrl: string,
+    key: Uint8Array,
+    verifier: CosmosPubKeyVerifier,
+  ): Promise<boolean> {
+    const stored = await this.accountKeys.get(address, async () => {
+      const account = await this.options.chainClient.getAccount(address);
+      // No account is a successful answer: nothing is stored on it. An
+      // account that omits pubKey did not answer, so the lookup fails.
+      if (!account) return null;
+      if (account.pubKey === undefined) {
+        throw new Error("account key lookup omitted pubKey");
+      }
+      return account.pubKey;
+    });
+    return signsFor(payerBytes, typeUrl, key, stored, verifier);
+  }
+
+  /**
    * Runs every check on a payment (the spec's verification steps 1 to 11).
    *
    * @param payload - x402 payment payload
@@ -266,15 +301,17 @@ export class ExactCosmosScheme implements SchemeNetworkFacilitator {
       const verifier = this.verifiers[signer.publicKey.typeUrl];
       if (!verifier) return refuse("invalid_exact_cosmos_payload_signer");
       const key = PubKey.decode(signer.publicKey.value).key;
-      let signerAddress: Uint8Array;
-      try {
-        signerAddress = verifier.address(key);
-      } catch {
-        return refuse("invalid_exact_cosmos_payload_signer");
-      }
-      if (!bytesEqual(signerAddress, payerBytes)) {
-        return refuse("invalid_exact_cosmos_payload_signer");
-      }
+      // The stored key signs for the account. With no stored key yet, the
+      // key its address hashes from does. A failed lookup throws here and
+      // the payment is refused.
+      const signs = await this.keySignsForPayer(
+        send.fromAddress,
+        payerBytes,
+        signer.publicKey.typeUrl,
+        key,
+        verifier,
+      );
+      if (!signs) return refuse("invalid_exact_cosmos_payload_signer");
 
       const fee = authInfo.fee;
       if (!fee || fee.granter !== "" || (fee.payer !== "" && fee.payer !== send.fromAddress)) {

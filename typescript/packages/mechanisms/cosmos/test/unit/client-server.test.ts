@@ -1,4 +1,6 @@
 import { base64 } from "@scure/base";
+import { QueryAccountInfoResponse } from "cosmjs-types/cosmos/auth/v1beta1/query";
+import { PubKey } from "cosmjs-types/cosmos/crypto/secp256k1/keys";
 import { AuthInfo, TxRaw } from "cosmjs-types/cosmos/tx/v1beta1/tx";
 import { describe, expect, it, vi } from "vitest";
 import { createCometRpcClient, createDirectSigner, feeForGas } from "../../src";
@@ -146,6 +148,43 @@ describe("createCometRpcClient", () => {
     });
     expect(await client.getAccount("aether1x")).toBeUndefined();
     expect(await client.getTx("AB")).toBeUndefined();
+  });
+
+  it("reads the public key stored on an account", async () => {
+    const key = Uint8Array.of(2, 3, 4);
+    const typeUrl = "/cosmos.crypto.secp256k1.PubKey";
+    const encoded = (pubKey?: { typeUrl: string; value: Uint8Array }) =>
+      base64.encode(
+        QueryAccountInfoResponse.encode({
+          info: {
+            address: "cosmos1q",
+            accountNumber: 7n,
+            sequence: 3n,
+            pubKey,
+          },
+        }).finish(),
+      );
+    const account = (value: string) =>
+      rpc({
+        abci_query: { result: { response: { code: 0, log: "", value } } },
+      }).client;
+    expect(
+      await account(encoded({ typeUrl, value: PubKey.encode({ key }).finish() })).getAccount(
+        "cosmos1q",
+      ),
+    ).toEqual({ accountNumber: 7n, sequence: 3n, pubKey: { typeUrl, key } });
+    expect(await account(encoded()).getAccount("cosmos1q")).toEqual({
+      accountNumber: 7n,
+      sequence: 3n,
+      pubKey: null,
+    });
+    // A pubkey Any that doesn't carry key bytes is a failed lookup.
+    await expect(
+      account(encoded({ typeUrl, value: Uint8Array.of(0x10, 0x01) })).getAccount("cosmos1q"),
+    ).rejects.toThrow("no key bytes");
+    await expect(
+      account(encoded({ typeUrl, value: Uint8Array.of(0xff) })).getAccount("cosmos1q"),
+    ).rejects.toThrow("account pubkey");
   });
 
   it("reports a failed simulation with the node's log", async () => {

@@ -14,7 +14,7 @@ import {
 import type { ClientCosmosSigner, CosmosChainClient } from "../../src";
 
 export const fakeChain = (overrides: Partial<CosmosChainClient> = {}): CosmosChainClient => ({
-  getAccount: async () => ({ accountNumber: 7n, sequence: 3n }),
+  getAccount: async () => ({ accountNumber: 7n, sequence: 3n, pubKey: null }),
   getLatestHeight: async () => 100n,
   simulate: async () => ({ gasUsed: 80_000n }),
   broadcastTxSync: async () => ({ hash: "", code: 0, log: "" }),

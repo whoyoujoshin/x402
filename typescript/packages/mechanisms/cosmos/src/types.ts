@@ -16,11 +16,32 @@ export type ExactCosmosPayload = {
 };
 
 /**
- * An account's number and next sequence.
+ * Public key stored on an account (`AccountInfo.pub_key`).
+ */
+export type CosmosAccountPubKey = {
+  /**
+   * Protobuf type URL, for example `/aether.crypto.v1.PubKey`.
+   */
+  typeUrl: string;
+  /**
+   * Raw key bytes (the key message's field 1).
+   */
+  key: Uint8Array;
+};
+
+/**
+ * An account's number, next sequence, and stored public key.
  */
 export type CosmosAccount = {
   accountNumber: bigint;
   sequence: bigint;
+  /**
+   * Key stored on the account, from `AccountInfo.pub_key`. `null` means the
+   * account has no key stored yet, so the key its address hashes from signs
+   * for it. Omitting `pubKey` is a failed lookup: the facilitator refuses
+   * the payment and does not cache the answer.
+   */
+  pubKey?: CosmosAccountPubKey | null;
 };
 
 /**
@@ -46,7 +67,9 @@ export type CosmosBroadcastResult = {
  */
 export interface CosmosChainClient {
   /**
-   * Account number and next sequence, or undefined if the account doesn't exist.
+   * Account number, next sequence, and stored public key, or undefined if
+   * the account doesn't exist. `pubKey` is `null` when the account has not
+   * signed yet. Omitting `pubKey` is a failed lookup.
    */
   getAccount(address: string): Promise<CosmosAccount | undefined>;
   /**
